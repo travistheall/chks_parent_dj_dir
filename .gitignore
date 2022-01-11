@@ -1,6 +1,5 @@
 .idea/
 out-*.txt
-requirements-*.csv
 not_in_requirements-*.csv
 __pycache__/
 **/__pycache__/
