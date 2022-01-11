@@ -43,7 +43,8 @@ class Parse:
             with open(path, 'r') as file:
                 lines = pd.Series([line for line in file])
             return lines
-        except FileNotFoundError:
+        # except FileNotFoundError: python3
+        except OSError:
             print("I could not find the file " + file_name + ",")
             print("In the path " + path)
             if file_name == 'treefreeze.txt':
@@ -111,8 +112,4 @@ class Parse:
         # requirements with don't have a leading tab
         # or a dependency which do have a leading tab
         req_dep = self.util.iter_packages(pkg_names)
-        # creates the base for requirements.csv
-        # starts as 0 and becomes 1 when we encounter the import later
-        req_dep['used'] = 0
-        print(req_dep)
         return req_dep

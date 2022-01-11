@@ -14,7 +14,7 @@ def find_my_site_packages():
     :return: (str) directory location of this python environment's site packages
     """
     print('You may need to change me depending on your environment')
-    pkgs_dir = site.getsitepackages()[1]
+    pkgs_dir = site.getsitepackages()[0]
     # [
     #   ' /root/.cache/activestate/868be8dc/lib/python2.7/site-packages/',
     #   '/root/.cache/activestate/868be8dc/lib/site-python'
@@ -100,7 +100,7 @@ class Util:
         :return: a pd dataframe with the requirement and it's dependencies
         """
         import_names = self.get_import_names()
-        req_dep = pd.DataFrame(columns=['pkg', 'dep'])
+        req_dep = []
         req = ''
         for index, req_or_dep in pkg_names.iteritems():
             req_or_dep = req_or_dep.rstrip()
@@ -110,26 +110,27 @@ class Util:
                 # remove indents
                 dep = dep.lstrip()
                 try:
-                    dep = import_names.loc[dep]['import_name']
-                    l_req_dep = pd.DataFrame(data=[[req, dep]], columns=['pkg', 'dep'])
-                    req_dep = req_dep.append(l_req_dep)
-                    # sets index for faster look ups
-                    req_dep.set_index('pkg', inplace=True)
-                    return req_dep
+                    dep = import_names.loc[dep]['top_lvl_name']
+                    l_req_dep = (req, dep)
+                    req_dep.append(l_req_dep)
                 except KeyError:
                     print('Error Dependency ' + dep + ' of ' + req + ' not  found in ' + self.site_pkgs_dir)
             else:
                 # then it's a requirement
                 req = req_or_dep
                 try:
-                    req = import_names.loc[req]['import_name']
-                    l_req_dep = pd.DataFrame(data=[[req, req]], columns=['pkg', 'dep'])
-                    req_dep = req_dep.append(l_req_dep)
-                    # sets index for faster look ups
-                    req_dep.set_index('pkg', inplace=True)
-                    return req_dep
+                    req = import_names.loc[req]['top_lvl_name']
+                    l_req_dep = (req, req)
+                    req_dep.append(l_req_dep)
                 except KeyError:
                     print('Error Requirement ' + req + ' not found in ' + self.site_pkgs_dir)
+
+
+        # sets index for faster look up
+        req_dep = pd.DataFrame(req_dep, columns=['req', 'dep'])
+        req_dep.set_index('req', inplace=True)
+        req_dep['used'] = 0
+        return req_dep
 
     def get_top_level_txt(self, pkg_dir_name):
         """
@@ -138,17 +139,22 @@ class Util:
             either the import name from the top_lvl.txt or the directory name
         """
         fname = "top_level.txt"
-        if os.path.isdir(pkg_dir_name):
-            for pkg_contents in os.listdir(pkg_dir_name):
+        path = os.path.join(self.site_pkgs_dir, pkg_dir_name)
+        if os.path.isdir(path):
+            for pkg_contents in os.listdir(path):
                 if pkg_contents == fname:
-                    top_level_file_path = os.path.join(self.site_pkgs_dir, fname)
+                    top_level_file_path = os.path.join(path, fname)
                     # PIL, cryptography, etc
                     with open(top_level_file_path, "r") as top_level_file:
                         lines = [line for line in top_level_file]
                     top_lvl_name = lines[0].strip()
-                    return top_lvl_name
-
-        return pkg_dir_name
+                    if not top_lvl_name:
+                        print("******** missing top_lvl_name: " + pkg_dir_name)
+                        test = pkg_dir_name[:pkg_dir_name.find("-")]
+                        print("******** returning: " + test)
+                        return test
+                    else:
+                        return top_lvl_name
 
     def get_import_names(self):
         """
@@ -158,26 +164,32 @@ class Util:
         import name: PIL (import PIL)
         :return: pandas dataframe with the requirement name and the import name
         """
-        pkg_dir_names = pd.Series(os.listdir(self.site_pkgs_dir), name="dir_name")
-        top_lvl_names = pkg_dir_names.apply(lambda dir_name: self.get_top_level_txt(dir_name))
-
-        top_lvl_names.rename("top_lvl_name", inplace=True)
-        top_lvl_names = pd.concat([pkg_dir_names, top_lvl_names], axis=1)
         endings = [
-            ".post1-py2.7.egg-info",
-            "-py3.6.egg-info",
-            "-py3.7-nspkg.pth",
-            "-py3.9-win-amd64.egg-info",
-            ".cp39-win_amd64.pyd",
             ".dist-info",
             ".dist-info'",
             "-py2.7.egg-info",
-            "-py3.9.egg-info",
-            "-py3.9.egg",
-            "-py3.9-nspkg.pth",
-            ".py",
-            "-py3.10.egg-info"
+            # "-py2.7-nspkg.pth",
+            #".py",
+            #".post1-py2.7.egg-info",
+            #"-py3.6.egg-info",
+            #"-py3.7-nspkg.pth",
+            #"-py3.9-win-amd64.egg-info",
+            #".cp39-win_amd64.pyd",
+            #"-py3.9.egg-info",
+            #"-py3.9.egg",
+            #"-py3.9-nspkg.pth",
+            #"-py3.10.egg-info"
         ]
+        pkg_dir_names = pd.Series(os.listdir(self.site_pkgs_dir), name="dir_name")
+        info = pd.Series()
+        for end in endings:
+            dir_names_end_in = pkg_dir_names[pkg_dir_names.str.endswith(end)]
+            info = info.append(dir_names_end_in)
+
+        top_lvl_names = info.apply(lambda dir_name: self.get_top_level_txt(dir_name))
+        top_lvl_names.rename("top_lvl_name", inplace=True)
+        top_lvl_names = pd.concat([pkg_dir_names, top_lvl_names], axis=1)
+
         reqs = top_lvl_names['dir_name'].apply(lambda name: self.find_requirements_name(name, endings))
         # string parsing
         # changes XlsxWriter-3.0.1 into XlsxWriter==3.0.1
@@ -186,11 +198,12 @@ class Util:
         reqs.rename('requirement', inplace=True)
         import_names = pd.concat([top_lvl_names['dir_name'], top_lvl_names['top_lvl_name'], reqs], axis=1)
         requirements = import_names[import_names['requirement'].str.contains('==')]
-        requirements[['import_name', 'req_version']] = requirements['requirement'].str.split('==', expand=True)
-        requirements = requirements[['requirement', 'import_name']]
-        # req_name | import_name
+        r = requirements['requirement'].str.split('==', expand=True)
+        requirements[['requirement_name', 'req_version']] = r[[0, 1]]
+        requirements = requirements[['requirement_name', 'top_lvl_name']]
+        # req_name | top_lvl_name
         # --------------------------
         # Pillow     |  PIL
         # cryptography| cryptography
-        requirements.set_index('import_name', inplace=True, drop=True)
+        requirements.set_index('requirement_name', inplace=True, drop=True)
         return requirements

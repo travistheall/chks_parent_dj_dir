@@ -67,7 +67,9 @@ class CheckParentDjangoDirectory:
         req_pkgs = pkgs[pkgs.isin(self.req.index)]
         if req_pkgs.any():
             # where this index matches in the requirements df increment + 1
-            self.req.at[req_pkgs, 'used'] += 1
+            r = self.req.loc[req_pkgs]
+            print(r)
+            self.req.at[req_pkgs, 'used'] = 1
         else:
             # ~ is a bitwise not in python means not in requirements below
             not_req_pkgs = pkgs[~pkgs.isin(self.req.index)]
