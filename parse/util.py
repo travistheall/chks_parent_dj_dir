@@ -62,12 +62,10 @@ class Util:
         _____________________________________________
         zope.event-4.5.0-py3.9.egg-info | 16
         xlrd-2.0.1.dist-info            | 10
-        xlwt                            | 0
 
         :returns cleaned names
             zope.event-4.5.0
-            xlrd-2.0.1.dist-info
-            xlwt
+            xlrd-2.0.1
         """
         symb = [requirement_line.find(search) for search in search_list if search in requirement_line]
         if len(symb) > 0:
