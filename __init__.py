@@ -21,8 +21,15 @@ class CheckParentDjangoDirectory:
             it is added to not_in_requirements.txt
             1 column.
             All packages in the file are used.
-    Inputs:
-        base = chks_parent_dj_dir directory of the project
+
+    Attributes
+    ----------
+        now : (str) timestamp
+        chks_parent_dj_dir : (str) the directory this code lives in
+        parent_dj_proj : (str) the directory of the django project
+        parse : (Parse) a parsing class (parse/__init__.py)
+        req : (pd.DataFrame) [cols: []]
+        not_in_req : (pd.DataFrame) [cols: []]
     """
 
     def __init__(self, chks_parent_dj_dir):
@@ -39,21 +46,28 @@ class CheckParentDjangoDirectory:
         Changes used from 0 to 1 if used.
         If it is used once then we should not remove it once iteration is over
 
-        :param imports: pandas Series fille with the import statments
+        :param imports: (pd.Series) lines with the import statements
         """
         # removes excess words only keep package name
+        # from numpy import add => ["from", "numpy", "import", "add"]
+        # import numpy as np => ["import", "numpy", "as", "np"]
+        # from django.db import blah => ["from", "django.db", "import", "blah"]
+        # from .lint import Lint => ["from", ".lint", "import", "Lint"]
         pkgs = imports.str.split(" ", expand=True)[1]
-        # account for imports like from django.db import blah
+        # numpy
+        # django.db
+        # .lint
         pkgs = pkgs.str.split('.', expand=True)[0]
-        # from .lint import Lint would cause an error because nothing there
-        # ["", "lint"]
+        # django.db => django
+        # .lint => ""
+        # .lint would cause an error because nothing there
         # this gets rid of those blank imports
         pkgs = pkgs[pkgs != ""]
         pkgs.reset_index(drop=True)
         req_pkgs = pkgs[pkgs.isin(self.req.index)]
         if req_pkgs.any():
-            # where this index matches in the requirements df change it to 1
-            self.req.at[req_pkgs, 'used'] = 1
+            # where this index matches in the requirements df increment + 1
+            self.req.at[req_pkgs, 'used'] += 1
         else:
             # ~ is a bitwise not in python means not in requirements below
             not_req_pkgs = pkgs[~pkgs.isin(self.req.index)]
@@ -65,7 +79,7 @@ class CheckParentDjangoDirectory:
     def loop_dir(self, directory):
         """
         Recursively look through directories
-        This is pretty pointless I just thought
+        This fn pretty pointless I just thought
         there was too much indentation
 
         :param directory: directory name
@@ -75,27 +89,29 @@ class CheckParentDjangoDirectory:
 
     def check_if_empty_file(self, f_name):
         """
-        completelely empty files returns an error
+        completely empty files returns an error
         This checks for the empty files or empty imports before parsing
-        :param  f_name: filename
+
+        continues on to parse_project_file if not empty
+        ends search if empty
+
+        :param  f_name: (str) filename
         """
         with open(f_name, 'r') as file:
-            lines = [line for line in file]
-            lines = pd.Series(lines)
-            # checks for any empty files
-            # empty files causes crashes
-            if lines.any():
-                lines = lines.str.strip()
-                # import statement starts with import
-                i_import = lines[lines.str.startswith('import')]
-                # import statement starts with from
-                f_import = lines[lines.str.startswith('from')]
-                # all import statments
-                a_imports = i_import.append(f_import)
-                # checks for any blank imports
-                # no lines that start with import or from
-                if a_imports.any():
-                    self.parse_project_file(a_imports)
+            lines = pd.Series([line for line in file])
+        # checks for any empty files to avoid crashing
+        if lines.any():
+            lines = lines.str.strip()
+            # import statement starts with import
+            i_import = lines[lines.str.startswith('import')]
+            # import statement starts with from
+            f_import = lines[lines.str.startswith('from')]
+            # all import statments
+            a_imports = i_import.append(f_import)
+            # checks for any blank imports
+            # no lines that start with import or from
+            if a_imports.any():
+                self.parse_project_file(a_imports)
 
     def route_file_dir(self, parent_dir, file_or_dir):
         """

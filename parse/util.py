@@ -1,3 +1,7 @@
+"""
+A module for the utility functions needed for parsing files
+"""
+
 import site
 import os
 import pandas as pd
@@ -6,8 +10,10 @@ import pandas as pd
 def find_my_site_packages():
     """
     Static function to find your site package directory.
-    :return: directory location of this python environment's site packages
+    !# may need to change me depending on the environment
+    :return: (str) directory location of this python environment's site packages
     """
+    print('You may need to change me depending on your environment')
     pkgs_dir = site.getsitepackages()[1]
     # [
     #   ' /root/.cache/activestate/868be8dc/lib/python2.7/site-packages/',
@@ -21,6 +27,14 @@ def find_my_site_packages():
 
 
 class Util:
+    """
+    A class to house the utility functions needed for parsing files
+
+    Attributes
+    ----------
+    site_pkgs_dir : str
+        a directory path to check the site-packages
+    """
     def __init__(self):
         self.site_pkgs_dir = find_my_site_packages()
 
@@ -28,9 +42,10 @@ class Util:
     def find_requirements_name(requirement_line, search_list):
         """
         finds the package name without version number
-        :params requirement_line: line read from requirements.txt or treefreeze.txt
+        :params requirement_line: (str) single line read from requirements.txt or treefreeze.txt
+        :params search_list: (List[str]) a list of strings to search for within in the line.
 
-        example:
+        example 1 requirement.txt:
         requirement_line  | loc (symbol location)
         _____________________________________________
         matplotlib~=3.4.3 | 10
@@ -41,10 +56,22 @@ class Util:
             matplotlib
             numpy
             pandas
+
+        example 2 treefreeze.txt:
+        requirement_line                | loc (symbol location)
+        _____________________________________________
+        zope.event-4.5.0-py3.9.egg-info | 16
+        xlrd-2.0.1.dist-info            | 10
+        xlwt                            | 0
+
+        :returns cleaned names
+            zope.event-4.5.0
+            xlrd-2.0.1.dist-info
+            xlwt
         """
         symb = [requirement_line.find(search) for search in search_list if search in requirement_line]
         if len(symb) > 0:
-            # this finds equirements with versions
+            # this finds requirements with versions
             # matplotlib~=3.4.3 finds "~=" at position 10
             # returns matplotlib
             loc = symb[0]
@@ -85,6 +112,10 @@ class Util:
                 try:
                     dep = import_names.loc[dep]['import_name']
                     l_req_dep = pd.DataFrame(data=[[req, dep]], columns=['pkg', 'dep'])
+                    req_dep = req_dep.append(l_req_dep)
+                    # sets index for faster look ups
+                    req_dep.set_index('pkg', inplace=True)
+                    return req_dep
                 except KeyError:
                     print('Error Dependency ' + dep + ' of ' + req + ' not  found in ' + self.site_pkgs_dir)
             else:
@@ -93,23 +124,22 @@ class Util:
                 try:
                     req = import_names.loc[req]['import_name']
                     l_req_dep = pd.DataFrame(data=[[req, req]], columns=['pkg', 'dep'])
+                    req_dep = req_dep.append(l_req_dep)
+                    # sets index for faster look ups
+                    req_dep.set_index('pkg', inplace=True)
+                    return req_dep
                 except KeyError:
                     print('Error Requirement ' + req + ' not found in ' + self.site_pkgs_dir)
 
-            req_dep = req_dep.append(l_req_dep)
-
-        # sets index for faster look ups
-        req_dep.set_index('pkg', inplace=True)
-        return req_dep
-
-    def get_top_level_txt(self, pkg):
+    def get_top_level_txt(self, pkg_dir_name):
         """
-        :param pkg_path: pandas series with directory names
-        :return:
+        :param pkg_dir_name: (str)
+        :return: (str)
+            either the import name from the top_lvl.txt or the directory name
         """
         fname = "top_level.txt"
-        if os.path.isdir(pkg):
-            for pkg_contents in os.listdir(pkg):
+        if os.path.isdir(pkg_dir_name):
+            for pkg_contents in os.listdir(pkg_dir_name):
                 if pkg_contents == fname:
                     top_level_file_path = os.path.join(self.site_pkgs_dir, fname)
                     # PIL, cryptography, etc
@@ -118,7 +148,7 @@ class Util:
                     top_lvl_name = lines[0].strip()
                     return top_lvl_name
 
-        return pkg
+        return pkg_dir_name
 
     def get_import_names(self):
         """
@@ -149,6 +179,8 @@ class Util:
             "-py3.10.egg-info"
         ]
         reqs = top_lvl_names['dir_name'].apply(lambda name: self.find_requirements_name(name, endings))
+        # string parsing
+        # changes XlsxWriter-3.0.1 into XlsxWriter==3.0.1
         reqs = reqs.str.replace('-', "==")
         reqs = reqs.str.replace('_', "-")
         reqs.rename('requirement', inplace=True)
@@ -162,5 +194,3 @@ class Util:
         # cryptography| cryptography
         requirements.set_index('import_name', inplace=True, drop=True)
         return requirements
-
-

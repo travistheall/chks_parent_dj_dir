@@ -8,10 +8,8 @@ import os
 # PYCHARM SETTINGS CONFIG FILE SCRIPT PATH:
 #       /Users/yashbehal/projects/doorstep-django/chks_parent_dj_dir/main.py
 # PYCHARM SETTINGS CONFIG FILE PYTHON INTERPRETER:
-#       python3 env with pandas
-# IN A TERMINAL RUN:
-#       pip3 install -r requirements.txt
-#       from config working directory
+#       activestate configured python 2 environment
+#       https://platform.activestate.com/DoorDash/ActivePythonEnterprise-2.7
 # PYCHARM SETTINGS CONFIG FILE WORKING DIR:
 #       /Users/yashbehal/projects/doorstep-django/chks_parent_dj_dir/
 
@@ -31,8 +29,9 @@ import os
 
 if __name__ == '__main__':
     print('You are running me from the working directory of ' + os.getcwd())
-    print("If your django project direcotry is ~/django,")
-    print("You should be running me from the ~/django/chks_parent_dj_dir.")
+    print("If your django project directory is ~/django,")
+    print("You should be running 'python main.py'")
+    print("from the ~/django/chks_parent_dj_dir.")
     print("I am expecting there to be a ~/django/requirements.txt & a ~/django/treeparse.txt")
     check = CheckParentDjangoDirectory(chks_parent_dj_dir=os.getcwd())
     check.run()
